@@ -1,0 +1,58 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant FE as React Frontend
+    participant API as Flask API
+    participant OSV as OSV.dev API
+    participant DB as MongoDB
+
+    User->>FE: Enter project name, choose requirements.txt / package.json
+    FE->>API: POST /api/parse (file)
+    API->>API: Validate and extract package names + versions
+    alt Invalid or unsupported file
+        API-->>FE: 400 error message
+        FE-->>User: Show error
+    else Valid file
+        API-->>FE: Dependencies + skipped entries
+        FE-->>User: Preview of extracted packages
+    end
+
+    User->>FE: Click "Scan Dependencies"
+    FE->>API: POST /api/scan (project name, dependencies)
+    API->>OSV: POST /v1/querybatch (all packages + versions)
+    OSV-->>API: Vulnerability IDs per package
+    loop Each unique vulnerability ID
+        API->>OSV: GET /v1/vulns/{id}
+        OSV-->>API: Severity, description, affected ranges, fixed versions
+    end
+
+    alt OSV.dev unreachable
+        API-->>FE: 502 error
+        FE-->>User: Show error (nothing saved)
+    else Scan succeeded
+        API->>DB: insert project
+        API->>DB: upsert vulnerabilities
+        API->>DB: insert dependencies (with vulnerability references)
+        DB-->>API: Saved
+        API-->>FE: 201 project_id
+    end
+
+    FE->>API: GET /api/results?project_id=...
+    API->>DB: find dependencies of project
+    DB-->>API: Documents
+    API-->>FE: Result rows
+    FE-->>User: Results table (filters + search)
+
+    User->>FE: Click a vulnerability
+    FE->>API: GET /api/vulnerabilities/{id}
+    API->>DB: find vulnerability document
+    DB-->>API: Details
+    API-->>FE: Description, affected + fixed versions
+    FE-->>User: Detail view
+
+    User->>FE: Open Dashboard
+    FE->>API: GET /api/dashboard
+    API->>DB: aggregate counts and severity distribution
+    DB-->>API: Totals
+    API-->>FE: Statistics
+    FE-->>User: Cards + severity chart

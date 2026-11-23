@@ -1,0 +1,50 @@
+erDiagram
+    PROJECT ||--o{ DEPENDENCY : "has"
+    PROJECT ||--|| UPLOADED_FILE : "embeds"
+    DEPENDENCY ||--o{ VULNERABILITY_REF : "embeds"
+    VULNERABILITY_REF }o--|| VULNERABILITY : "references"
+
+    PROJECT {
+        ObjectId _id PK
+        string project_name
+        object uploaded_file
+        datetime created_at "indexed desc"
+    }
+
+    UPLOADED_FILE {
+        string filename
+        string content
+    }
+
+    DEPENDENCY {
+        ObjectId _id PK
+        ObjectId project_id FK "indexed"
+        string package_name
+        string version
+        string ecosystem "PyPI or npm"
+        array vulnerabilities "embedded list"
+    }
+
+    VULNERABILITY_REF {
+        string vulnerability_id FK
+        string severity
+        array fixed_versions
+    }
+
+    VULNERABILITY {
+        ObjectId _id PK
+        string vulnerability_id UK "unique with package_name and ecosystem"
+        string package_name UK
+        string ecosystem UK
+        string severity "indexed"
+        double cvss_score
+        string cvss_vector
+        string summary
+        string description
+        array aliases
+        array affected_versions
+        array fixed_versions
+        array references
+        datetime published
+        datetime modified
+    }

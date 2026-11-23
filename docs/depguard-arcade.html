@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DepGuard Arcade Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0420; --panel: #140a38; --line: #2a1a66;
+    --cyan: #00f0ff; --pink: #ff2bd6; --yellow: #ffe600; --green: #39ff14; --red: #ff3b5c;
+    --text: #e8e4ff; --dim: #8b82c4;
+    --px: 'Press Start 2P', 'Courier New', monospace;
+    --body: 'VT323', 'Courier New', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--body); font-size: 22px; line-height: 1.35;
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 48px 48px; background-position: -1px -1px;
+  }
+  /* CRT scanlines + vignette */
+  body::after {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 100;
+    background: repeating-linear-gradient(to bottom, rgba(0,0,0,.18) 0 1px, transparent 1px 3px),
+                radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.55) 100%);
+  }
+  h1, h2, h3, .px { font-family: var(--px); font-weight: 400; line-height: 1.5; }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- HUD ---------- */
+  .hud {
+    position: sticky; top: 0; z-index: 50; background: rgba(10,4,32,.92); backdrop-filter: blur(4px);
+    border-bottom: 4px solid var(--pink);
+  }
+  .hud .wrap { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; padding-top: 12px; padding-bottom: 12px; font-family: var(--px); font-size: 10px; }
+  .hud b { color: var(--yellow); font-weight: 400; }
+  .lives { color: var(--red); letter-spacing: 3px; }
+
+  /* ---------- hero ---------- */
+  .hero { text-align: center; padding: 70px 0 50px; }
+  .hero h1 {
+    font-size: clamp(26px, 6vw, 56px); color: var(--cyan);
+    text-shadow: 4px 4px 0 var(--pink), 8px 8px 0 #4a0f6e, 0 0 24px rgba(0,240,255,.6);
+    animation: float 3s ease-in-out infinite;
+  }
+  .hero .sub { margin-top: 28px; font-family: var(--px); font-size: 11px; color: var(--yellow); line-height: 2; }
+  .hero p.lead { max-width: 640px; margin: 22px auto 0; color: var(--dim); }
+  .blink { animation: blink 1s steps(2) infinite; }
+  .btn {
+    display: inline-block; margin-top: 34px; padding: 16px 26px; font-family: var(--px); font-size: 12px; color: #000; background: var(--yellow);
+    border: 0; box-shadow: 0 6px 0 #a08c00, 0 0 18px rgba(255,230,0,.5); cursor: pointer; text-decoration: none; transition: transform .1s, box-shadow .1s;
+  }
+  .btn:hover { transform: translateY(-2px); }
+  .btn:active { transform: translateY(5px); box-shadow: 0 1px 0 #a08c00; }
+
+  .scoreboard { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin: 10px 0 70px; }
+  .score { border: 4px solid var(--cyan); background: var(--panel); padding: 16px; box-shadow: 6px 6px 0 var(--pink); transition: transform .15s; }
+  .score:hover { transform: translate(-3px, -3px); }
+  .score .px { font-size: 9px; color: var(--dim); }
+  .score .big { font-family: var(--px); font-size: 20px; color: var(--green); margin-top: 10px; }
+
+  /* ---------- levels ---------- */
+  .level { margin: 0 0 90px; scroll-margin-top: 70px; }
+  .level-head { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-bottom: 26px; }
+  .tag { font-family: var(--px); font-size: 11px; background: var(--pink); color: #fff; padding: 8px 12px; box-shadow: 4px 4px 0 #000; }
+  .pts { margin-left: auto; font-family: var(--px); font-size: 11px; color: var(--yellow); border: 3px solid var(--yellow); padding: 8px 10px; }
+  .level h2 { font-size: clamp(14px, 2.6vw, 22px); color: var(--cyan); text-shadow: 3px 3px 0 #000; }
+  .panel { background: var(--panel); border: 4px solid var(--line); padding: 22px; position: relative; }
+  .panel + .panel { margin-top: 18px; }
+  .panel h3 { font-size: 12px; color: var(--yellow); margin-bottom: 14px; }
+  .panel::before, .panel::after { content: ''; position: absolute; width: 10px; height: 10px; background: var(--cyan); }
+  .panel::before { top: -4px; left: -4px; } .panel::after { bottom: -4px; right: -4px; background: var(--pink); }
+  ul.pix { list-style: none; }
+  ul.pix li { padding-left: 24px; position: relative; margin: 8px 0; }
+  ul.pix li::before { content: '▶'; position: absolute; left: 0; color: var(--green); font-size: 14px; top: 4px; }
+  .hl { color: var(--yellow); } .hc { color: var(--cyan); } .hp { color: var(--pink); } .hg { color: var(--green); }
+
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+
+  /* boss / problem flow */
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 10px; }
+  .step { flex: 1 1 170px; border: 3px solid var(--line); padding: 14px; background: #0d0630; transition: .15s; }
+  .step:hover { border-color: var(--pink); transform: translateY(-4px); }
+  .step .px { font-size: 9px; color: var(--pink); margin-bottom: 8px; }
+  .arrow { align-self: center; font-family: var(--px); color: var(--yellow); }
+  .case { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .case > div { border: 3px dashed var(--red); padding: 14px; }
+  .case .px { font-size: 10px; color: var(--red); margin-bottom: 8px; }
+
+  /* db type chooser */
+  .picker { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 16px; }
+  .db {
+    text-align: left; background: #0d0630; color: var(--text); font-family: var(--body); font-size: 20px;
+    border: 4px solid var(--line); padding: 16px; cursor: pointer; transition: .15s; position: relative;
+  }
+  .db:hover { border-color: var(--cyan); transform: translateY(-4px); }
+  .db .px { font-size: 11px; color: var(--cyan); margin-bottom: 10px; display: block; }
+  .db .verdict { display: block; margin-top: 10px; font-family: var(--px); font-size: 9px; }
+  .db.win { border-color: var(--green); box-shadow: 0 0 20px rgba(57,255,20,.35); }
+  .db.win .verdict { color: var(--green); }
+  .db.lose .verdict { color: var(--red); }
+  .db.active { background: #1b0f4d; border-color: var(--yellow); }
+  .why { margin-top: 18px; min-height: 120px; border: 3px solid var(--yellow); padding: 16px; background: #0d0630; }
+  .why .px { font-size: 11px; color: var(--yellow); margin-bottom: 10px; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 20px; }
+  th { font-family: var(--px); font-size: 9px; color: var(--pink); text-align: left; padding: 10px 8px; border-bottom: 3px solid var(--pink); }
+  td { padding: 8px; border-bottom: 2px solid var(--line); vertical-align: top; }
+  .table-wrap { overflow-x: auto; }
+
+  /* schema */
+  .er { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 10px 0 6px; }
+  .ent { border: 4px solid var(--cyan); background: #0d0630; min-width: 210px; box-shadow: 6px 6px 0 var(--pink); }
+  .ent .px { background: var(--cyan); color: #000; font-size: 10px; padding: 8px 10px; }
+  .ent ul { list-style: none; padding: 8px 10px; font-size: 19px; }
+  .ent li .k { color: var(--yellow); } .ent li .t { color: var(--dim); }
+  .rel { font-family: var(--px); font-size: 9px; color: var(--yellow); text-align: center; line-height: 1.8; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .tab { font-family: var(--px); font-size: 10px; padding: 10px 12px; background: #0d0630; color: var(--dim); border: 3px solid var(--line); cursor: pointer; }
+  .tab.on { color: #000; background: var(--green); border-color: var(--green); }
+  pre {
+    background: #05020f; border: 3px solid var(--line); padding: 16px; overflow-x: auto; font-family: 'VT323', monospace; font-size: 20px; line-height: 1.25; color: #cfc9ff;
+  }
+  pre .s { color: var(--green); } pre .n { color: var(--yellow); } pre .k { color: var(--cyan); } pre .c { color: var(--dim); }
+
+  .win-screen { text-align: center; padding: 40px 10px 90px; }
+  .win-screen h2 { color: var(--green); font-size: clamp(16px, 3vw, 26px); text-shadow: 3px 3px 0 #000, 0 0 20px rgba(57,255,20,.5); }
+  .footer { border-top: 4px solid var(--pink); padding: 24px 0 40px; text-align: center; color: var(--dim); font-size: 18px; }
+
+  /* reveal on scroll */
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity .6s, transform .6s steps(8); }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @keyframes blink { 50% { opacity: 0; } }
+  @keyframes float { 50% { transform: translateY(-8px); } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } .reveal { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<!-- HUD -->
+<header class="hud">
+  <div class="wrap">
+    <span>PLAYER 1: <b>DEPGUARD</b></span>
+    <span>SCORE <b id="score">00</b> / 11</span>
+    <span>LEVEL <b id="lvl">0</b>/3</span>
+    <span class="lives">♥ ♥ ♥</span>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <p class="px blink" style="font-size:11px;color:var(--pink)">★ NOSQL EXPERIENTIAL LEARNING ★</p>
+    <h1 style="margin-top:24px">DEPGUARD</h1>
+    <p class="sub">SOFTWARE DEPENDENCY &amp;<br />VULNERABILITY ANALYZER</p>
+    <p class="lead">Activities 1–3: identify the problem, pick the right NoSQL database, and design the data model.<br />Stack: React · Flask · MongoDB · OSV.dev API</p>
+    <a href="#level1" class="btn">PRESS START ▶</a>
+  </section>
+
+  <section class="scoreboard reveal">
+    <div class="score"><div class="px">LEVEL 1</div><div class="big">+03</div><p style="margin-top:6px;color:var(--dim)">Real-world problem</p></div>
+    <div class="score"><div class="px">LEVEL 2</div><div class="big">+03</div><p style="margin-top:6px;color:var(--dim)">NoSQL database type</p></div>
+    <div class="score"><div class="px">LEVEL 3</div><div class="big">+05</div><p style="margin-top:6px;color:var(--dim)">Schema / data model</p></div>
+  </section>
+
+  <!-- LEVEL 1 -->
+  <section class="level reveal" id="level1" data-level="1">
+    <div class="level-head">
+      <span class="tag">LEVEL 1</span>
+      <h2>IDENTIFY A REAL-WORLD PROBLEM</h2>
+      <span class="pts">03 PTS</span>
+    </div>
+
+    <div class="panel">
+      <h3>▌THE BOSS: VULNERABLE DEPENDENCIES</h3>
+      <p>Almost no modern application is written from scratch. A typical project pulls in dozens or hundreds of
+        third-party packages from <span class="hc">PyPI</span> and <span class="hc">npm</span>, and those packages pull in more.
+        When a flaw is found in any one of them, <span class="hp">every project using the affected version is exposed</span>,
+        often without the developers knowing.</p>
+    </div>
+
+    <div class="panel">
+      <h3>▌REAL INCIDENTS</h3>
+      <div class="case">
+        <div><p class="px">LOG4SHELL · 2021</p>A critical flaw in the widely used Java logging library Log4j allowed remote code execution. Many teams did not know whether it was buried somewhere in their software.</div>
+        <div><p class="px">EQUIFAX · 2017</p>A known flaw in the Apache Struts framework stayed unpatched and was exploited in a major data breach.</div>
+        <div><p class="px">EVENT-STREAM · 2018</p>A popular npm package was taken over and shipped malicious code to the projects that depended on it.</div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>▌THE PROBLEM</h3>
+      <ul class="pix">
+        <li>Developers rarely know <span class="hl">which exact versions</span> of packages they are using are vulnerable.</li>
+        <li>Checking each package by hand on advisory websites is <span class="hl">slow and error-prone</span>.</li>
+        <li>Advisories change constantly, and each has a <span class="hl">different shape</span>: several ID formats, severity ratings, version ranges and fixes.</li>
+        <li>Teams need to see <span class="hl">what to fix first</span> (severity) and <span class="hl">what to upgrade to</span> (fixed version).</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h3>▌OUR SOLUTION: DEPGUARD</h3>
+      <div class="flow">
+        <div class="step"><p class="px">1 UPLOAD</p>requirements.txt or package.json</div>
+        <span class="arrow">▶</span>
+        <div class="step"><p class="px">2 EXTRACT</p>package names and versions</div>
+        <span class="arrow">▶</span>
+        <div class="step"><p class="px">3 CHECK</p>OSV.dev vulnerability API</div>
+        <span class="arrow">▶</span>
+        <div class="step"><p class="px">4 STORE</p>results saved in MongoDB</div>
+        <span class="arrow">▶</span>
+        <div class="step"><p class="px">5 REPORT</p>dashboard, filters, fixes</div>
+      </div>
+      <p style="margin-top:14px"><span class="hg">Outcome:</span> in seconds, a developer sees which dependencies are vulnerable, how severe each issue is,
+        which versions are affected and which version fixes it, using real data from OSV.dev.</p>
+    </div>
+  </section>
+
+  <!-- LEVEL 2 -->
+  <section class="level reveal" id="level2" data-level="2">
+    <div class="level-head">
+      <span class="tag">LEVEL 2</span>
+      <h2>SELECT THE NOSQL DATABASE TYPE</h2>
+      <span class="pts">03 PTS</span>
+    </div>
+
+    <div class="panel">
+      <h3>▌CHOOSE YOUR FIGHTER (click each one)</h3>
+      <div class="picker" id="picker">
+        <button class="db win" data-k="doc"><span class="px">DOCUMENT</span>MongoDB<span class="verdict">★ SELECTED</span></button>
+        <button class="db lose" data-k="col"><span class="px">COLUMN-FAMILY</span>Cassandra, HBase<span class="verdict">✖ NOT CHOSEN</span></button>
+        <button class="db lose" data-k="kv"><span class="px">KEY-VALUE</span>Redis, DynamoDB<span class="verdict">✖ NOT CHOSEN</span></button>
+        <button class="db lose" data-k="graph"><span class="px">GRAPH</span>Neo4j<span class="verdict">✖ NOT CHOSEN</span></button>
+        <button class="db lose" data-k="sql"><span class="px">SQL (RELATIONAL)</span>MySQL, PostgreSQL<span class="verdict">✖ NOT CHOSEN</span></button>
+      </div>
+      <div class="why" id="why"></div>
+    </div>
+
+    <div class="panel">
+      <h3>▌WHY A DOCUMENT DATABASE WINS</h3>
+      <ul class="pix">
+        <li><span class="hl">Flexible structure.</span> Advisories from OSV.dev differ: some have CVSS vectors, some do not; ranges, aliases and references vary. A document stores each one as it is, with no empty columns.</li>
+        <li><span class="hl">Embedding.</span> A dependency can hold its list of vulnerabilities inside one document, so the results table needs one query instead of joins.</li>
+        <li><span class="hl">Maps to JSON.</span> The OSV.dev API returns JSON, Flask works with Python dictionaries and React with JSON. No conversion layer is needed.</li>
+        <li><span class="hl">Powerful aggregation.</span> The dashboard totals and severity chart are computed with MongoDB's <code>$group</code> and <code>$unwind</code>.</li>
+        <li><span class="hl">Indexing.</span> Secondary and unique indexes support fast lookups and prevent duplicate advisories.</li>
+        <li><span class="hl">Simple for a student project.</span> Easy local install, a readable query language and a clear fit with the data.</li>
+      </ul>
+    </div>
+
+    <div class="panel">
+      <h3>▌COMPARISON SCOREBOARD</h3>
+      <div class="table-wrap">
+        <table>
+          <tr><th>TYPE</th><th>STRENGTH</th><th>FIT FOR DEPGUARD</th></tr>
+          <tr><td class="hg">Document</td><td>Flexible nested records, rich queries, aggregation</td><td class="hg">Best fit: variable advisories, embedded lists</td></tr>
+          <tr><td>Column-family</td><td>Huge write volumes across clusters</td><td>Overkill: small data, needs flexible queries</td></tr>
+          <tr><td>Key-value</td><td>Very fast lookup by one key</td><td>Weak: we filter by severity, project, package</td></tr>
+          <tr><td>Graph</td><td>Relationships and traversal</td><td>Possible for transitive dependencies, but out of our scope</td></tr>
+          <tr><td>SQL (relational)</td><td>Fixed schema, joins, strong consistency</td><td>Workable, but needs many tables and joins for flexible, nested data</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>▌BONUS BOSS: WHY NOT SQL?</h3>
+      <p style="margin-bottom:12px">SQL databases such as MySQL or PostgreSQL are excellent tools, and DepGuard <span class="hl">could</span> be built on one. We did not choose it for these reasons:</p>
+      <ul class="pix">
+        <li><span class="hl">The assignment is NoSQL.</span> The activity asks us to pick a NoSQL type and design its data model, so a relational database would miss the learning goal.</li>
+        <li><span class="hl">Nested lists need extra tables.</span> One advisory has lists of aliases, affected ranges, fixed versions and references. In SQL each list becomes its own table with joins. In MongoDB they are arrays inside one document.</li>
+        <li><span class="hl">Embedding avoids joins.</span> A dependency stores its vulnerability summary inside itself, so the results table is one query. In SQL it would join dependencies, a link table and vulnerabilities.</li>
+        <li><span class="hl">Changing data shape.</span> OSV advisories do not always have the same fields (CVSS vectors, ranges, aliases). SQL needs a fixed schema, NULL columns or migrations when a field is added. A document can simply omit or add a field.</li>
+        <li><span class="hl">JSON all the way.</span> OSV.dev returns JSON, Flask passes dictionaries and React reads JSON. MongoDB stores it nearly as-is, with no object-to-table mapping.</li>
+      </ul>
+      <p style="margin-top:14px"><span class="hg">Fair trade-off:</span> SQL would give stricter data rules (foreign keys, fixed types) and our dashboard counts would also work there. We accept weaker enforcement and replace it with unique indexes and validation in the Flask code.</p>
+      <div class="table-wrap">
+        <table>
+          <tr><th>NEED</th><th>SQL WAY</th><th>MONGODB WAY</th></tr>
+          <tr><td>List of fixed versions</td><td>Separate table + join</td><td class="hg">Array field</td></tr>
+          <tr><td>Dependency + its vulnerabilities</td><td>3-table join</td><td class="hg">Embedded list, one query</td></tr>
+          <tr><td>New advisory field</td><td>ALTER TABLE / migration</td><td class="hg">Just store the field</td></tr>
+          <tr><td>Store OSV JSON</td><td>Map JSON to columns</td><td class="hg">Store as a document</td></tr>
+          <tr><td>Data integrity</td><td class="hg">Foreign keys, strict types</td><td>Unique indexes + app validation</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- LEVEL 3 -->
+  <section class="level reveal" id="level3" data-level="3">
+    <div class="level-head">
+      <span class="tag">LEVEL 3</span>
+      <h2>DESIGN SCHEMA / DATA MODELS</h2>
+      <span class="pts">05 PTS</span>
+    </div>
+
+    <div class="panel">
+      <h3>▌THE MAP: THREE COLLECTIONS</h3>
+      <div class="er">
+        <div class="ent">
+          <div class="px">projects</div>
+          <ul>
+            <li><span class="k">_id</span> <span class="t">ObjectId</span></li>
+            <li>project_name <span class="t">string</span></li>
+            <li>uploaded_file <span class="t">{filename, content}</span></li>
+            <li>created_at <span class="t">date</span></li>
+          </ul>
+        </div>
+        <div class="rel">1<br />─────<br />HAS MANY<br />─────▶ N<br /><span style="color:var(--dim)">reference</span></div>
+        <div class="ent">
+          <div class="px">dependencies</div>
+          <ul>
+            <li><span class="k">_id</span> <span class="t">ObjectId</span></li>
+            <li><span class="k">project_id</span> <span class="t">ref</span></li>
+            <li>package_name <span class="t">string</span></li>
+            <li>version <span class="t">string</span></li>
+            <li>ecosystem <span class="t">PyPI | npm</span></li>
+            <li>vulnerabilities <span class="t">[ embedded ]</span></li>
+          </ul>
+        </div>
+        <div class="rel">N<br />─────<br />POINTS TO<br />─────▶ N<br /><span style="color:var(--dim)">vulnerability_id</span></div>
+        <div class="ent">
+          <div class="px">vulnerabilities</div>
+          <ul>
+            <li><span class="k">vulnerability_id</span> <span class="t">string</span></li>
+            <li>package_name <span class="t">string</span></li>
+            <li>ecosystem <span class="t">string</span></li>
+            <li>severity <span class="t">enum</span></li>
+            <li>description <span class="t">string</span></li>
+            <li>affected_versions <span class="t">[string]</span></li>
+            <li>fixed_versions <span class="t">[string]</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>▌SAMPLE DOCUMENTS (click a tab)</h3>
+      <div class="tabs" id="tabs">
+        <button class="tab on" data-t="p">projects</button>
+        <button class="tab" data-t="d">dependencies</button>
+        <button class="tab" data-t="v">vulnerabilities</button>
+      </div>
+<pre id="sample"></pre>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3>▌EMBED OR REFERENCE?</h3>
+        <ul class="pix">
+          <li><span class="hc">Embedded:</span> each dependency keeps a short summary of its vulnerabilities (<code>vulnerability_id</code>, <code>severity</code>, <code>fixed_versions</code>). The results table loads with one query.</li>
+          <li><span class="hp">Referenced:</span> the long description, CVSS data, aliases and links are stored once in <code>vulnerabilities</code> and fetched by ID only when a user opens the detail view.</li>
+          <li><span class="hp">Referenced:</span> dependencies point to their project through <code>project_id</code>, since a project can have many dependencies.</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>▌INDEXES (POWER-UPS)</h3>
+        <div class="table-wrap">
+          <table>
+            <tr><th>COLLECTION</th><th>INDEX</th></tr>
+            <tr><td>projects</td><td>created_at ↓</td></tr>
+            <tr><td>dependencies</td><td>project_id</td></tr>
+            <tr><td>dependencies</td><td>package_name + ecosystem</td></tr>
+            <tr><td>vulnerabilities</td><td class="hl">UNIQUE vulnerability_id + package_name + ecosystem</td></tr>
+            <tr><td>vulnerabilities</td><td>severity</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>▌KEY QUERY: SEVERITY DISTRIBUTION</h3>
+<pre><span class="c">// dashboard chart: count findings per severity</span>
+db.dependencies.aggregate([
+  { <span class="k">$match</span>:  { project_id: ObjectId(<span class="s">"…"</span>) } },
+  { <span class="k">$unwind</span>: <span class="s">"$vulnerabilities"</span> },
+  { <span class="k">$group</span>:  { _id: <span class="s">"$vulnerabilities.severity"</span>, count: { <span class="k">$sum</span>: <span class="n">1</span> } } }
+])
+
+<span class="c">// safe vs vulnerable dependencies</span>
+db.dependencies.countDocuments({ <span class="s">"vulnerabilities.0"</span>: { <span class="k">$exists</span>: <span class="n">true</span> } })</pre>
+    </div>
+  </section>
+
+  <!-- WIN -->
+  <section class="win-screen reveal">
+    <p class="px blink" style="color:var(--yellow);font-size:11px">★ ★ ★</p>
+    <h2 style="margin-top:20px">LEVELS 1–3 CLEARED!</h2>
+    <p style="margin-top:18px;color:var(--dim)">Next up: Level 4 – Implement · Level 5 – Demonstrate · Level 6 – Report</p>
+    <a href="#" class="btn" onclick="window.scrollTo({top:0});return false;">PLAY AGAIN ↺</a>
+  </section>
+</main>
+
+<footer class="footer">DEPGUARD · NoSQL Experiential Learning · Data model sample uses a real OSV.dev advisory (PyYAML)</footer>
+
+<script>
+  /* ---------- sample documents ---------- */
+  const samples = {
+    p: `{
+  <span class="k">"_id"</span>: ObjectId(<span class="s">"6b044e72a89cf20fb582770b"</span>),
+  <span class="k">"project_name"</span>: <span class="s">"Demo - Python API"</span>,
+  <span class="k">"uploaded_file"</span>: {
+    <span class="k">"filename"</span>: <span class="s">"requirements.txt"</span>,
+    <span class="k">"content"</span>: <span class="s">"flask==0.12\\ndjango==2.2.0\\n…"</span>
+  },
+  <span class="k">"created_at"</span>: ISODate(<span class="s">"2026-11-23T14:32:18Z"</span>)
+}`,
+    d: `{
+  <span class="k">"_id"</span>: ObjectId(<span class="s">"…"</span>),
+  <span class="k">"project_id"</span>: ObjectId(<span class="s">"6b044e72a89cf20fb582770b"</span>),   <span class="c">// → projects</span>
+  <span class="k">"package_name"</span>: <span class="s">"pyyaml"</span>,
+  <span class="k">"version"</span>: <span class="s">"5.1"</span>,
+  <span class="k">"ecosystem"</span>: <span class="s">"PyPI"</span>,
+  <span class="k">"vulnerabilities"</span>: [                              <span class="c">// embedded summary</span>
+    {
+      <span class="k">"vulnerability_id"</span>: <span class="s">"GHSA-3pqx-4fqf-j49f"</span>,         <span class="c">// → vulnerabilities</span>
+      <span class="k">"severity"</span>: <span class="s">"CRITICAL"</span>,
+      <span class="k">"fixed_versions"</span>: [<span class="s">"5.2"</span>]
+    }
+  ]
+}`,
+    v: `{
+  <span class="k">"vulnerability_id"</span>: <span class="s">"GHSA-3pqx-4fqf-j49f"</span>,
+  <span class="k">"package_name"</span>: <span class="s">"pyyaml"</span>,
+  <span class="k">"ecosystem"</span>: <span class="s">"PyPI"</span>,
+  <span class="k">"severity"</span>: <span class="s">"CRITICAL"</span>,
+  <span class="k">"cvss_score"</span>: <span class="n">9.8</span>,
+  <span class="k">"summary"</span>: <span class="s">"Deserialization of Untrusted Data in PyYAML"</span>,
+  <span class="k">"description"</span>: <span class="s">"PyYAML 5.1 through 5.1.2 has insufficient restrictions on the load and load_all functions…"</span>,
+  <span class="k">"aliases"</span>: [<span class="s">"CVE-2019-20477"</span>, <span class="s">"PYSEC-2020-176"</span>],
+  <span class="k">"affected_versions"</span>: [<span class="s">"&gt;= 5.1, &lt; 5.2"</span>],
+  <span class="k">"fixed_versions"</span>: [<span class="s">"5.2"</span>]
+}`
+  };
+  const sampleEl = document.getElementById('sample');
+  sampleEl.innerHTML = samples.p;
+  document.querySelectorAll('#tabs .tab').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#tabs .tab').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); sampleEl.innerHTML = samples[b.dataset.t];
+  });
+
+  /* ---------- database picker ---------- */
+  const why = {
+    doc: ['DOCUMENT · MongoDB — WINNER', 'Stores each advisory as flexible JSON, lets a dependency embed its vulnerabilities, supports aggregation for the dashboard and maps directly to the OSV.dev JSON and the Flask/React stack.'],
+    col: ['COLUMN-FAMILY — NOT CHOSEN', 'Designed for massive write throughput across many servers, with queries planned in advance. DepGuard has small data and needs flexible filtering (by severity, project, package), so the complexity is not worth it.'],
+    kv: ['KEY-VALUE — NOT CHOSEN', 'Great for caching or session data where you always know the key. We need to filter and group (all critical findings, all vulnerable packages), which a plain key lookup cannot do.'],
+    sql: ['SQL (RELATIONAL) — NOT CHOSEN', 'A SQL database could store this data, but it needs fixed tables, join tables for the many-to-many links and extra tables for lists such as aliases and fixed versions. The project also has to use a NoSQL database, and our data is JSON-shaped. See the "Why not SQL?" panel below.'],
+    graph: ['GRAPH — NOT CHOSEN', 'Ideal for relationship traversal, for example transitive dependency chains. Our scope is a flat list of direct dependencies and their advisories, so graph power would go unused.']
+  };
+  const whyEl = document.getElementById('why');
+  function showWhy(k) {
+    whyEl.innerHTML = `<p class="px">${why[k][0]}</p><p>${why[k][1]}</p>`;
+    document.querySelectorAll('#picker .db').forEach(b => b.classList.toggle('active', b.dataset.k === k));
+  }
+  document.querySelectorAll('#picker .db').forEach(b => b.onclick = () => showWhy(b.dataset.k));
+  showWhy('doc');
+
+  /* ---------- reveal on scroll + HUD score ---------- */
+  const seen = new Set();
+  const pts = { 1: 3, 2: 3, 3: 5 };
+  const io = new IntersectionObserver(entries => entries.forEach(e => {
+    if (!e.isIntersecting) return;
+    e.target.classList.add('in');
+    const l = e.target.dataset.level;
+    if (l && !seen.has(l)) {
+      seen.add(l);
+      const total = [...seen].reduce((s, x) => s + pts[x], 0);
+      document.getElementById('score').textContent = String(total).padStart(2, '0');
+      document.getElementById('lvl').textContent = Math.max(...seen);
+    }
+  }), { threshold: 0.12 });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+</script>
+</body>
+</html>
